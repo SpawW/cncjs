@@ -19,7 +19,14 @@ const buildVersion = pkg.version;
 
 module.exports = {
   mode: 'development',
-  cache: true,
+  // 'cache: true' resolves to a memory cache, which is thrown away with the
+  // container. A filesystem cache drops a warm rebuild from ~21s to ~3s and,
+  // when cacheDirectory lives under node_modules (a Docker named volume),
+  // survives container recreation.
+  cache: {
+    type: 'filesystem',
+    cacheDirectory: path.resolve(__dirname, 'node_modules/.cache/webpack'),
+  },
   target: 'web',
   context: path.resolve(__dirname, 'src/app'),
   devtool: 'eval-cheap-module-source-map',
@@ -33,7 +40,7 @@ module.exports = {
       keep: (asset) => {
         const keep = [
           'assets',
-          'favicon.icon',
+          'favicon.ico',
           'i18n',
           'images',
         ].some(x => asset.startsWith(x));

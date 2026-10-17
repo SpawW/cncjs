@@ -100,6 +100,15 @@ describe('stl-to-gcode', () => {
     expect(bbox.height).toBeCloseTo(20, 6);
   });
 
+  test('enables the fan when requested', () => {
+    const { gcode } = convertStlToGcode(writeAsciiStl(boxTriangles(20, 10, 5)), {
+      invertY: false,
+      fan: true,
+    });
+    expect(gcode).toMatch(/^M8\b/m);
+    expect(gcode.trim().endsWith('M9 ; fan')).toBe(true);
+  });
+
   test('throws when the slice Z is outside the model', () => {
     expect(() => convertStlToGcode(writeAsciiStl(boxTriangles()), { z: 100 })).toThrow(
       'outside the model height'

@@ -22,6 +22,7 @@ import delay from '../../lib/delay';
 import evaluateAssignmentExpression from '../../lib/evaluate-assignment-expression';
 import x from '../../lib/json-stringify';
 import logger from '../../lib/logger';
+import { createSimulationCommands } from '../../lib/simulate';
 import translateExpression from '../../lib/translate-expression';
 import config from '../../services/configstore';
 import monitor from '../../services/monitor';
@@ -1961,6 +1962,7 @@ class GrblController {
             callback(null, { compensatedGcode });
           }
         },
+        ...createSimulationCommands(this, (line) => this.command('gcode', line), args),
       }[cmd];
 
       if (!handler) {

@@ -662,5 +662,7 @@
   "Scale": "Scale",
   "Invert Y Axis": "Invert Y Axis",
   "Offset X (mm)": "Offset X (mm)",
-  "Offset Y (mm)": "Offset Y (mm)"
+  "Offset Y (mm)": "Offset Y (mm)",
+  "Fan (M8)": "Fan (M8)",
+  "Laser Power (S)": "Laser Power (S)"
 }

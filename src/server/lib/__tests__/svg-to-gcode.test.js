@@ -103,6 +103,22 @@ describe('svg-to-gcode', () => {
     expect(gcode).toContain('; Pass 3/3');
   });
 
+  test('enables the fan with M8 at the start and M9 at the end when requested', () => {
+    const { gcode } = convertSvgToGcode(
+      svg('<line x1="0" y1="0" x2="10" y2="10"/>'),
+      { fan: true }
+    );
+    expect(gcode).toMatch(/^M8\b/m);
+    expect(gcode.trim().endsWith('M9 ; fan')).toBe(true);
+    // M8 must come before the first cutting move
+    expect(gcode.indexOf('M8')).toBeLessThan(gcode.indexOf('G1'));
+  });
+
+  test('does not emit fan commands by default', () => {
+    const { gcode } = convertSvgToGcode(svg('<line x1="0" y1="0" x2="10" y2="10"/>'));
+    expect(gcode).not.toMatch(/^M[89]\b/m);
+  });
+
   test('throws for an empty document', () => {
     expect(() => convertSvgToGcode('')).toThrow('Empty SVG document');
   });

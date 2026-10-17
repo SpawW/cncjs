@@ -661,5 +661,7 @@
   "Slice Z (mm, optional)": "",
   "Importing...": "",
   "Drop G-code, SVG or STL file here": "",
-  "Import SVG / STL": ""
+  "Import SVG / STL": "",
+  "Fan (M8)": "",
+  "Laser Power (S)": ""
 }

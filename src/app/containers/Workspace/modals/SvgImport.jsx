@@ -33,6 +33,7 @@ const parseOptions = (values) => {
     offsetX: toNumber(values.offsetX, 0),
     offsetY: toNumber(values.offsetY, 0),
     invertY: values.invertY !== 'no',
+    fan: values.fan !== 'no',
   };
 };
 
@@ -54,6 +55,7 @@ const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
           offsetX: 0,
           offsetY: 0,
           invertY: 'yes',
+          fan: 'yes',
         }}
         onSubmit={(values) => onSubmit(parseOptions(values))}
         render={({ handleSubmit, invalid, submitting, submitError }) => (
@@ -209,6 +211,22 @@ const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
                     )}
                   </Field>
                 </Col>
+              </Row>
+              <Row>
+                <Col>
+                  <Field name="fan">
+                    {({ input }) => (
+                      <FormGroup>
+                        <label>{i18n._('Fan (M8)')}</label>
+                        <select aria-label="Fan (M8)" className="form-control" {...input}>
+                          <option value="yes">{i18n._('Yes')}</option>
+                          <option value="no">{i18n._('No')}</option>
+                        </select>
+                      </FormGroup>
+                    )}
+                  </Field>
+                </Col>
+                <Col />
               </Row>
             </Modal.Body>
             <Modal.Footer>

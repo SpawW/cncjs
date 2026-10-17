@@ -15,6 +15,7 @@ const EPS = 1e-9;
 const DEFAULT_OPTIONS = {
   z: null, // Slice height (mm); defaults to the vertical middle of the model
   scale: 1, // Additional scale applied to the model units
+  fan: false,
 };
 
 const isBinaryStl = (buffer) => {

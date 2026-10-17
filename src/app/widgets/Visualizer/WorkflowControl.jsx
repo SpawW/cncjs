@@ -27,7 +27,9 @@ import {
   WORKFLOW_STATE_RUNNING
 } from '../../constants';
 import {
-  MODAL_WATCH_DIRECTORY
+  MODAL_WATCH_DIRECTORY,
+  SIMULATE_MODE_TRACE,
+  SIMULATE_MODE_CORNERS
 } from './constants';
 import styles from './workflow-control.styl';
 
@@ -148,12 +150,53 @@ class WorkflowControl extends PureComponent {
       return true;
     }
 
+    canSimulate() {
+      const { state } = this.props;
+      const { port, gcode, workflow } = state;
+      const controllerType = state.controller.type;
+      const controllerState = state.controller.state;
+
+      if (!port) {
+        return false;
+      }
+      if (!gcode.ready) {
+        return false;
+      }
+      if (!includes([GRBL, MARLIN, SMOOTHIE, TINYG], controllerType)) {
+        return false;
+      }
+      if (workflow.state !== WORKFLOW_STATE_IDLE) {
+        return false;
+      }
+      if (controllerType === GRBL) {
+        const activeState = get(controllerState, 'status.activeState');
+        if (activeState === GRBL_ACTIVE_STATE_ALARM) {
+          return false;
+        }
+      }
+      if (controllerType === SMOOTHIE) {
+        const activeState = get(controllerState, 'status.activeState');
+        if (activeState === SMOOTHIE_ACTIVE_STATE_ALARM) {
+          return false;
+        }
+      }
+      if (controllerType === TINYG) {
+        const machineState = get(controllerState, 'sr.machineState');
+        if (machineState === TINYG_MACHINE_STATE_ALARM) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
     render() {
       const { state, actions } = this.props;
       const { port, gcode, workflow } = state;
       const canClick = !!port;
       const isReady = canClick && gcode.ready;
       const canRun = this.canRun();
+      const canSimulate = this.canSimulate();
       const canPause = isReady && includes([WORKFLOW_STATE_RUNNING], workflow.state);
       const canStop = isReady && includes([WORKFLOW_STATE_PAUSED], workflow.state);
       const canClose = isReady && includes([WORKFLOW_STATE_IDLE], workflow.state);
@@ -261,6 +304,40 @@ class WorkflowControl extends PureComponent {
               >
                 <i aria-hidden="true" className="fa fa-fw fa-play" style={{ marginRight: 0 }} />
               </Button>
+              <Dropdown
+                btnStyle="flat"
+                btnSize="sm"
+                disabled={!canSimulate}
+              >
+                <Dropdown.Toggle
+                  btnStyle="flat"
+                  title={i18n._('Simulate')}
+                  style={{ minWidth: 0, padding: '4px 8px' }}
+                >
+                  <i aria-hidden="true" className="fa fa-fw fa-eye" style={{ marginRight: 0 }} />
+                  <i aria-hidden="true" className="fa fa-fw fa-caret-down" style={{ marginRight: 0 }} />
+                </Dropdown.Toggle>
+                <Dropdown.Menu>
+                  <MenuItem
+                    onSelect={() => {
+                      actions.simulate(SIMULATE_MODE_TRACE);
+                    }}
+                  >
+                    <i aria-hidden="true" className="fa fa-fw fa-road" />
+                    <Space width="4" />
+                    {i18n._('Trace engraving path')}
+                  </MenuItem>
+                  <MenuItem
+                    onSelect={() => {
+                      actions.simulate(SIMULATE_MODE_CORNERS);
+                    }}
+                  >
+                    <i aria-hidden="true" className="fa fa-fw fa-arrows-alt" />
+                    <Space width="4" />
+                    {i18n._('Trace work area')}
+                  </MenuItem>
+                </Dropdown.Menu>
+              </Dropdown>
               <Button
                 aria-label="Pause"
                 title={i18n._('Pause')}

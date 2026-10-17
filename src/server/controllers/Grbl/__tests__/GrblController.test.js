@@ -345,6 +345,52 @@ describe('GrblController', () => {
     });
   });
 
+  describe('simulate', () => {
+    test('simulate:trace replays the program with the power clamped to the minimum', () => {
+      const { controller, writes } = setup();
+
+      controller.command('simulate:trace', 'M3 S0\nG1 X10 Y10 S500\nM5', 1, 1000);
+      flushFeeder(controller);
+
+      expect(writes.map(write => write.data)).toEqual([
+        'M3 S0\n',
+        'G1 X10 Y10 S10\n',
+        'M5\n',
+        'M5\n',
+      ]);
+    });
+
+    test('simulate:corners moves to the four corners and pulses the laser', () => {
+      const { controller, writes } = setup();
+
+      controller.command('simulate:corners', { min: { x: 0, y: 0 }, max: { x: 10, y: 20 } }, 1, 1000, 100);
+      flushFeeder(controller);
+
+      expect(writes.map(write => write.data)).toEqual([
+        'G0 X0 Y0\n',
+        'G1F1\n',
+        'M3S10\n',
+        'G4P0.1\n',
+        'M5S0\n',
+        'G0 X10 Y0\n',
+        'G1F1\n',
+        'M3S10\n',
+        'G4P0.1\n',
+        'M5S0\n',
+        'G0 X10 Y20\n',
+        'G1F1\n',
+        'M3S10\n',
+        'G4P0.1\n',
+        'M5S0\n',
+        'G0 X0 Y20\n',
+        'G1F1\n',
+        'M3S10\n',
+        'G4P0.1\n',
+        'M5S0\n',
+      ]);
+    });
+  });
+
   describe('feeder', () => {
     test('feeder:feed feeds commands to the feeder queue', () => {
       const { controller, writes, socketEvents } = setup();

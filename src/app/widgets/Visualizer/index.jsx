@@ -28,6 +28,8 @@ import Notifications from './Notifications';
 import Loading from './Loading';
 import Rendering from './Rendering';
 import WatchDirectory from './WatchDirectory';
+import SimulateModal from './SimulateModal';
+import RunModal from './RunModal';
 import {
   // Units
   IMPERIAL_UNITS,
@@ -52,6 +54,10 @@ import {
   CAMERA_MODE_PAN,
   CAMERA_MODE_ROTATE,
   MODAL_WATCH_DIRECTORY,
+  MODAL_SIMULATE,
+  MODAL_RUN,
+  SIMULATE_MODE_TRACE,
+  SIMULATE_MODE_CORNERS,
   NOTIFICATION_PROGRAM_ERROR,
   NOTIFICATION_M0_PROGRAM_PAUSE,
   NOTIFICATION_M1_PROGRAM_PAUSE,
@@ -402,7 +408,14 @@ class VisualizerWidget extends PureComponent {
         console.assert(includes([WORKFLOW_STATE_IDLE, WORKFLOW_STATE_PAUSED], workflow.state));
 
         if (workflow.state === WORKFLOW_STATE_IDLE) {
-          controller.command('gcode:start');
+          const storedPower = this.config.get('run.power');
+          const power = Number.isFinite(storedPower) ? storedPower : this.findDefaultPower();
+          const fan = this.config.get('run.fan', true);
+
+          this.actions.openModal(MODAL_RUN, {
+            power: power,
+            fan: fan
+          });
           return;
         }
 
@@ -465,6 +478,112 @@ class VisualizerWidget extends PureComponent {
         controller.command('gcode:unload');
 
         pubsub.publish('gcode:unload'); // Unload the G-code
+      },
+      simulate: (mode) => {
+        const controllerType = this.state.controller.type;
+        const defaultMaxS = (controllerType === MARLIN) ? 255 : 1000;
+
+        this.actions.openModal(MODAL_SIMULATE, {
+          mode: mode,
+          power: this.config.get('simulate.power', 1),
+          maxS: this.config.get('simulate.maxS', defaultMaxS)
+        });
+      },
+      runSimulate: ({ mode, power, maxS }) => {
+        this.config.set('simulate.power', power);
+        this.config.set('simulate.maxS', maxS);
+
+        if (mode === SIMULATE_MODE_TRACE) {
+          controller.command('simulate:trace', this.state.gcode.content, power, maxS);
+        } else if (mode === SIMULATE_MODE_CORNERS) {
+          controller.command('simulate:corners', this.state.gcode.bbox, power, maxS);
+        }
+
+        this.setState({
+          simulation: {
+            running: true,
+            active: false,
+            mode: mode
+          }
+        });
+      },
+      runGCode: ({ power, fan }) => {
+        this.config.set('run.power', power);
+        this.config.set('run.fan', fan);
+
+        let gcode = this.state.gcode.content || '';
+
+        // Normalize fan: remove our marker fan lines, then inject if enabled
+        gcode = gcode
+          .split('\n')
+          .filter(line => !/;\s*fan\s*$/i.test(line.trim()))
+          .join('\n');
+
+        if (fan) {
+          gcode = 'M8 ; fan\n' + gcode + '\nM9 ; fan\n';
+        }
+
+        // Apply power: replace S on M3/M4 lines
+        gcode = gcode
+          .split('\n')
+          .map(line => {
+            const trimmed = line.trim();
+            if (/^M[34]\b/i.test(trimmed)) {
+              if (/\bS\s*-?[0-9.]+/i.test(line)) {
+                return line.replace(/\bS\s*-?[0-9.]+/i, `S${power}`);
+              }
+              // append S before comment if present
+              if (line.includes(';')) {
+                const idx = line.indexOf(';');
+                const codePart = line.substring(0, idx).trimRight();
+                const commentPart = line.substring(idx);
+                return codePart + ` S${power}` + commentPart;
+              }
+              return line.trimRight() + ` S${power}`;
+            }
+            return line;
+          })
+          .join('\n');
+
+        const name = this.state.gcode.name || 'gcode.nc';
+        const context = {};
+
+        this.setState((state) => ({
+          gcode: {
+            ...state.gcode,
+            loading: true,
+            rendering: false,
+            ready: false
+          }
+        }));
+
+        controller.command('gcode:load', name, gcode, context, (err, data) => {
+          if (err) {
+            this.setState((state) => ({
+              gcode: {
+                ...state.gcode,
+                loading: false,
+                rendering: false,
+                ready: false
+              }
+            }));
+            log.error(err);
+            return;
+          }
+          controller.command('gcode:start');
+        });
+      },
+      cancelSimulate: () => {
+        controller.command('feeder:stop');
+        controller.command('lasertest:off');
+
+        this.setState({
+          simulation: {
+            running: false,
+            active: false,
+            mode: ''
+          }
+        });
       },
       setBoundingBox: (bbox) => {
         this.setState((state) => ({
@@ -701,6 +820,38 @@ class VisualizerWidget extends PureComponent {
             state: workflowState
           }
         }));
+      },
+      'feeder:status': (data) => {
+        const { simulation } = this.state;
+
+        if (!simulation.running) {
+          return;
+        }
+
+        const isActive = !!(data.pending || data.queue > 0);
+
+        if (isActive) {
+          if (!simulation.active) {
+            this.setState(state => ({
+              simulation: {
+                ...state.simulation,
+                active: true
+              }
+            }));
+          }
+          return;
+        }
+
+        if (simulation.active) {
+          this.setState(state => ({
+            simulation: {
+              ...state.simulation,
+              running: false,
+              active: false,
+              mode: ''
+            }
+          }));
+        }
       },
       'controller:settings': (type, controllerSettings) => {
         this.setState(state => ({
@@ -940,6 +1091,11 @@ class VisualizerWidget extends PureComponent {
           name: '',
           params: {}
         },
+        simulation: {
+          running: false,
+          active: false,
+          mode: ''
+        },
         machinePosition: { // Machine position
           x: '0.000',
           y: '0.000',
@@ -1010,6 +1166,18 @@ class VisualizerWidget extends PureComponent {
         const callback = this.controllerEvents[eventName];
         controller.removeListener(eventName, callback);
       });
+    }
+
+    findDefaultPower() {
+      const gcode = this.state.gcode.content || '';
+      const match = gcode.match(/^\s*M[34]\b[^;\n]*\bS\s*(-?[0-9.]+)/im);
+      if (match) {
+        const value = Number(match[1]);
+        if (Number.isFinite(value) && value > 0) {
+          return value;
+        }
+      }
+      return 1000;
     }
 
     isAgitated() {
@@ -1100,10 +1268,52 @@ class VisualizerWidget extends PureComponent {
                 actions={actions}
               />
             )}
+            {state.modal.name === MODAL_SIMULATE && (
+              <SimulateModal
+                state={state}
+                actions={actions}
+              />
+            )}
+            {state.modal.name === MODAL_RUN && (
+              <RunModal
+                state={state}
+                actions={actions}
+              />
+            )}
             <WorkflowControl
               state={state}
               actions={actions}
             />
+            {state.simulation.running && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 48,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '4px 10px',
+                  color: '#fff',
+                  backgroundColor: 'rgba(217, 83, 79, 0.9)',
+                  borderRadius: 3,
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
+                  fontSize: '1.2rem'
+                }}
+              >
+                <i aria-hidden="true" className="fa fa-eye" />
+                <span>{i18n._('Simulation running')}</span>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-default"
+                  onClick={actions.cancelSimulate}
+                >
+                  {i18n._('Stop')}
+                </button>
+              </div>
+            )}
             <Dashboard
               show={showDashboard}
               state={state}

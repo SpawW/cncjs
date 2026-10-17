@@ -2,6 +2,8 @@ import constants from 'namespace-constants';
 
 export const {
   MODAL_WATCH_DIRECTORY,
+  MODAL_SIMULATE,
+  MODAL_RUN,
   NOTIFICATION_PROGRAM_ERROR,
   NOTIFICATION_M0_PROGRAM_PAUSE,
   NOTIFICATION_M1_PROGRAM_PAUSE,
@@ -12,6 +14,8 @@ export const {
   NOTIFICATION_M190_SET_HEATED_BED_TEMPERATURE
 } = constants('widgets/Visualizer', [
   'MODAL_WATCH_DIRECTORY',
+  'MODAL_SIMULATE',
+  'MODAL_RUN',
   'NOTIFICATION_PROGRAM_ERROR',
   'NOTIFICATION_M0_PROGRAM_PAUSE',
   'NOTIFICATION_M1_PROGRAM_PAUSE',
@@ -24,3 +28,6 @@ export const {
 
 export const CAMERA_MODE_PAN = 'pan';
 export const CAMERA_MODE_ROTATE = 'rotate';
+
+export const SIMULATE_MODE_TRACE = 'trace';
+export const SIMULATE_MODE_CORNERS = 'corners';

@@ -266,6 +266,39 @@ describe('SmoothieController', () => {
     });
   });
 
+  describe('simulate', () => {
+    test('simulate:trace replays the program with the power clamped to the minimum', () => {
+      const { controller, writes } = create();
+
+      controller.command('simulate:trace', 'M3 S0\nG1 X10 Y10 S500\nM5', 1, 1000);
+      pumpFeeder(controller);
+
+      expect(written(writes)).toEqual([
+        'M3 S0\n',
+        'G1 X10 Y10 S10\n',
+        'M5\n',
+        'M5\n',
+      ]);
+    });
+
+    test('simulate:corners moves to the four corners and pulses the laser directly', () => {
+      const { controller, writes } = create();
+
+      controller.command('simulate:corners', { min: { x: 0, y: 0 }, max: { x: 10, y: 20 } }, 1, 1000, 100);
+
+      expect(written(writes)).toEqual([
+        'G0 X0 Y0\n',
+        'M3\n', 'fire 1\n', 'G4P0.1\n', 'fire off\n', 'M5\n',
+        'G0 X10 Y0\n',
+        'M3\n', 'fire 1\n', 'G4P0.1\n', 'fire off\n', 'M5\n',
+        'G0 X10 Y20\n',
+        'M3\n', 'fire 1\n', 'G4P0.1\n', 'fire off\n', 'M5\n',
+        'G0 X0 Y20\n',
+        'M3\n', 'fire 1\n', 'G4P0.1\n', 'fire off\n', 'M5\n',
+      ]);
+    });
+  });
+
   describe('sender workflow', () => {
     test('gcode:load stores the program plus the dwell line and returns the sender snapshot', () => {
       const { controller, writes } = create();

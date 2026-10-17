@@ -44,6 +44,24 @@ services:
     volumes:
       - .:/app
       - node_modules:/app/node_modules
+      - /dev:/dev
+    # /dev is bind-mounted so hotplugged nodes show up automatically, but Docker
+    # still filters device numbers via cgroup. Whitelist the whole major ranges
+    # (188 = ttyUSB, 166 = ttyACM) so any USB serial adapter works without
+    # hardcoding a path that changes across reboots.
+    device_cgroup_rules:
+      - "c 188:* rwm"
+      - "c 166:* rwm"
+    # No healthcheck means Docker only ever reports "Up" for this service, so
+    # the "(healthy)" you see early belongs to grbl-sim alone. Poll the real
+    # app: "/" is served by the backend rendering output/cncjs/app/index.hbs,
+    # so a 200 means the UI is genuinely usable.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 15s
     stdin_open: true
     tty: true
 
