@@ -1,0 +1,25 @@
+FROM node:18-bookworm
+
+# Build tooling for native modules, socat for the virtual serial port, and udev
+# so SerialPort.list() (which shells out to udevadm) can enumerate ports.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    socat \
+    udev \
+    python3 \
+    build-essential \
+    git \
+  && rm -rf /var/lib/apt/lists/*
+
+# The repository ships Yarn 3 via .yarn/releases, which is bind-mounted when the
+# container starts, so resolve it at runtime instead of at build time.
+RUN printf '#!/bin/sh\nexec node /app/.yarn/releases/yarn-3.3.1.cjs "$@"\n' > /usr/local/bin/yarn \
+  && chmod +x /usr/local/bin/yarn
+
+WORKDIR /app
+
+COPY docker/dev/entrypoint.sh /usr/local/bin/dev-entrypoint
+RUN chmod +x /usr/local/bin/dev-entrypoint
+
+ENTRYPOINT ["dev-entrypoint"]
+CMD ["yarn", "dev"]

@@ -155,6 +155,36 @@ const loadGCode = (options) => new Promise((resolve, reject) => {
     });
 });
 
+const loadSVG = (options) => new Promise((resolve, reject) => {
+  const { port = '', name = '', svg = '', options: svgOptions = {} } = { ...options };
+
+  authrequest
+    .post('/api/svg')
+    .send({ port, name, svg, options: svgOptions })
+    .end((err, res) => {
+      if (err) {
+        reject(res);
+      } else {
+        resolve(res);
+      }
+    });
+});
+
+const loadSTL = (options) => new Promise((resolve, reject) => {
+  const { port = '', name = '', stl = '', options: stlOptions = {} } = { ...options };
+
+  authrequest
+    .post('/api/stl')
+    .send({ port, name, stl, options: stlOptions })
+    .end((err, res) => {
+      if (err) {
+        reject(res);
+      } else {
+        resolve(res);
+      }
+    });
+});
+
 const fetchGCode = (options) => new Promise((resolve, reject) => {
   const { port = '' } = { ...options };
 
@@ -738,6 +768,8 @@ export default {
 
   // G-code
   loadGCode,
+  loadSVG,
+  loadSTL,
   fetchGCode,
   downloadGCode,
 

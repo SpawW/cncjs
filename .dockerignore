@@ -1,0 +1,8 @@
+node_modules
+dist
+output
+releases
+coverage
+.git
+.github
+graphify-out

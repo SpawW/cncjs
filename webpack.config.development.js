@@ -198,6 +198,10 @@ module.exports = {
         runtimeErrors: true,
       },
       progress: true,
+      // When the app is served from a different origin (e.g. cncjs backend on
+      // :8000 with the dev server on another port), point the HMR client at the
+      // reachable dev server address, e.g. "auto://0.0.0.0:8090/ws".
+      webSocketURL: process.env.WEBPACK_DEV_SERVER_WS_URL,
     },
     devMiddleware: {
       writeToDisk: true,

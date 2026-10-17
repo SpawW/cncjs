@@ -1,6 +1,8 @@
 import * as version from './api.version';
 import * as state from './api.state';
 import * as gcode from './api.gcode';
+import * as svg from './api.svg';
+import * as stl from './api.stl';
 import * as controllers from './api.controllers';
 import * as watch from './api.watch';
 import * as commands from './api.commands';
@@ -15,6 +17,8 @@ export {
   version,
   state,
   gcode,
+  svg,
+  stl,
   controllers,
   watch,
   commands,

@@ -21,12 +21,14 @@ import SecondaryWidgets from './SecondaryWidgets';
 import FeederPaused from './modals/FeederPaused';
 import FeederWait from './modals/FeederWait';
 import ServerDisconnected from './modals/ServerDisconnected';
+import SvgImport from './modals/SvgImport';
 import styles from './index.styl';
 import {
   MODAL_NONE,
   MODAL_FEEDER_PAUSED,
   MODAL_FEEDER_WAIT,
-  MODAL_SERVER_DISCONNECTED
+  MODAL_SERVER_DISCONNECTED,
+  MODAL_SVG_IMPORT
 } from './constants';
 
 const WAIT = '%wait';
@@ -110,6 +112,8 @@ class Workspace extends PureComponent {
     secondaryWidgets = null;
 
     defaultContainer = null;
+
+    pubsubTokens = [];
 
     controllerEvents = {
       'connect': () => {
@@ -270,8 +274,26 @@ class Workspace extends PureComponent {
         return;
       }
 
-      let file = files[0];
-      let reader = new FileReader();
+      const file = files[0];
+      const isSvg = /\.svg$/i.test(file.name) || file.type === 'image/svg+xml';
+      const isStl = /\.stl$/i.test(file.name) || file.type === 'model/stl' || file.type === 'application/sla';
+
+      if (isSvg) {
+        this.action.openModal(MODAL_SVG_IMPORT, { file, mode: 'svg' });
+        return;
+      }
+
+      if (isStl) {
+        this.action.openModal(MODAL_SVG_IMPORT, { file, mode: 'stl' });
+        return;
+      }
+
+      this.uploadGCodeFile(file);
+    };
+
+    uploadGCodeFile = (file) => {
+      const { port } = this.state;
+      const reader = new FileReader();
 
       reader.onloadend = (event) => {
         const { result, error } = event.target;
@@ -315,6 +337,112 @@ class Workspace extends PureComponent {
       } catch (err) {
         // Ignore error
       }
+    };
+
+    uploadSvgFile = (file, options) => {
+      const { port } = this.state;
+
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onerror = () => {
+          reject(new Error('Failed to read SVG file'));
+        };
+
+        reader.onloadend = (event) => {
+          const { result, error } = event.target;
+
+          if (error) {
+            log.error(error);
+            reject(new Error('Failed to read SVG file'));
+            return;
+          }
+
+          log.debug('FileReader:', _.pick(file, [
+            'lastModified',
+            'lastModifiedDate',
+            'meta',
+            'name',
+            'size',
+            'type'
+          ]));
+
+          startWaiting();
+          this.setState({ isUploading: true });
+
+          api.loadSVG({ port, name: file.name, svg: result, options })
+            .then((res) => {
+              const { name = '', gcode = '' } = { ...res.body };
+              pubsub.publish('gcode:load', { name, gcode });
+              resolve();
+            })
+            .catch((res) => {
+              const reason = (res && res.body && res.body.msg) ? res.body.msg : 'Failed to import SVG file';
+              log.error('Failed to import SVG file:', reason);
+              reject(new Error(reason));
+            })
+            .then(() => {
+              stopWaiting();
+              this.setState({ isUploading: false });
+            });
+        };
+
+        try {
+          reader.readAsText(file);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    };
+
+    uploadStlFile = (file, options) => {
+      const { port } = this.state;
+
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onerror = () => {
+          reject(new Error('Failed to read STL file'));
+        };
+
+        reader.onloadend = (event) => {
+          const { result, error } = event.target;
+
+          if (error) {
+            log.error(error);
+            reject(new Error('Failed to read STL file'));
+            return;
+          }
+
+          // result is a data URL: "data:...;base64,<data>"
+          const stl = String(result).split(',').pop();
+
+          startWaiting();
+          this.setState({ isUploading: true });
+
+          api.loadSTL({ port, name: file.name, stl, options })
+            .then((res) => {
+              const { name = '', gcode = '' } = { ...res.body };
+              pubsub.publish('gcode:load', { name, gcode });
+              resolve();
+            })
+            .catch((res) => {
+              const reason = (res && res.body && res.body.msg) ? res.body.msg : 'Failed to import STL file';
+              log.error('Failed to import STL file:', reason);
+              reject(new Error(reason));
+            })
+            .then(() => {
+              stopWaiting();
+              this.setState({ isUploading: false });
+            });
+        };
+
+        try {
+          reader.readAsDataURL(file);
+        } catch (err) {
+          reject(err);
+        }
+      });
     };
 
     updateWidgetsForPrimaryContainer = () => {
@@ -375,6 +503,18 @@ class Workspace extends PureComponent {
       this.addControllerEvents();
       this.addResizeEventListener();
 
+      this.pubsubTokens.push(pubsub.subscribe('svg:import', (msg, data = {}) => {
+        const { file } = data;
+        if (!file || !this.state.port) {
+          return;
+        }
+        if (controller.workflow.state !== WORKFLOW_STATE_IDLE) {
+          return;
+        }
+        const isStl = /\.stl$/i.test(file.name);
+        this.action.openModal(MODAL_SVG_IMPORT, { file, mode: isStl ? 'stl' : 'svg' });
+      }));
+
       setTimeout(() => {
         // A workaround solution to trigger componentDidUpdate on initial render
         this.setState({ mounted: true });
@@ -384,6 +524,9 @@ class Workspace extends PureComponent {
     componentWillUnmount() {
       this.removeControllerEvents();
       this.removeResizeEventListener();
+
+      this.pubsubTokens.forEach(token => pubsub.unsubscribe(token));
+      this.pubsubTokens = [];
     }
 
     componentDidUpdate() {
@@ -449,6 +592,25 @@ class Workspace extends PureComponent {
           )}
           {modal.name === MODAL_SERVER_DISCONNECTED &&
             <ServerDisconnected />}
+          {modal.name === MODAL_SVG_IMPORT && (
+            <SvgImport
+              fileName={modal.params.file ? modal.params.file.name : ''}
+              mode={modal.params.mode || 'svg'}
+              onClose={this.action.closeModal}
+              onSubmit={(options) => {
+                const file = modal.params.file;
+                if (!file) {
+                  return Promise.reject(new Error('No file selected'));
+                }
+                const upload = modal.params.mode === 'stl'
+                  ? this.uploadStlFile(file, options)
+                  : this.uploadSvgFile(file, options);
+                return upload.then(() => {
+                  this.action.closeModal();
+                });
+              }}
+            />
+          )}
           <div
             className={classNames(
               styles.dropzoneOverlay,
@@ -456,7 +618,7 @@ class Workspace extends PureComponent {
             )}
           >
             <div className={styles.textBlock}>
-              {i18n._('Drop G-code file here')}
+              {i18n._('Drop G-code, SVG or STL file here')}
             </div>
           </div>
           <Dropzone

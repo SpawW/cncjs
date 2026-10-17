@@ -270,6 +270,10 @@ const appMain = () => {
     app.get(urljoin(settings.route, 'api/gcode/download'), api.gcode.download);
     app.post(urljoin(settings.route, 'api/gcode/download'), api.gcode.download); // Alias
 
+    // SVG
+    app.post(urljoin(settings.route, 'api/svg'), api.svg.upload);
+    app.post(urljoin(settings.route, 'api/stl'), api.stl.upload);
+
     // Controllers
     app.get(urljoin(settings.route, 'api/controllers'), api.controllers.get);
 

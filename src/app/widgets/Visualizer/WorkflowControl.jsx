@@ -2,6 +2,7 @@ import get from 'lodash/get';
 import includes from 'lodash/includes';
 import pick from 'lodash/pick';
 import PropTypes from 'prop-types';
+import pubsub from 'pubsub-js';
 import React, { PureComponent } from 'react';
 import { Button, ButtonGroup, ButtonToolbar } from 'app/components/Buttons';
 import Dropdown, { MenuItem } from 'app/components/Dropdown';
@@ -38,9 +39,27 @@ class WorkflowControl extends PureComponent {
 
     fileInputEl = null;
 
+    svgInputEl = null;
+
     handleClickUpload = (event) => {
       this.fileInputEl.value = null;
       this.fileInputEl.click();
+    };
+
+    handleClickImportSvg = (event) => {
+      this.svgInputEl.value = null;
+      this.svgInputEl.click();
+    };
+
+    handleChangeSvgFile = (event) => {
+      const files = event.target.files;
+      const file = files[0];
+
+      if (!file) {
+        return;
+      }
+
+      pubsub.publish('svg:import', { file });
     };
 
     handleChangeFile = (event) => {
@@ -139,6 +158,7 @@ class WorkflowControl extends PureComponent {
       const canStop = isReady && includes([WORKFLOW_STATE_PAUSED], workflow.state);
       const canClose = isReady && includes([WORKFLOW_STATE_IDLE], workflow.state);
       const canUpload = isReady ? canClose : (canClick && !gcode.loading);
+      const canImportSvg = canClick && includes([WORKFLOW_STATE_IDLE], workflow.state);
 
       return (
         <div className={styles.workflowControl}>
@@ -152,6 +172,16 @@ class WorkflowControl extends PureComponent {
             style={{ display: 'none' }}
             multiple={false}
             onChange={this.handleChangeFile}
+          />
+          <input
+            ref={(node) => {
+              this.svgInputEl = node;
+            }}
+            type="file"
+            accept=".svg,image/svg+xml,.stl,model/stl,application/sla"
+            style={{ display: 'none' }}
+            multiple={false}
+            onChange={this.handleChangeSvgFile}
           />
           <ButtonToolbar>
             <ButtonGroup
@@ -196,6 +226,24 @@ class WorkflowControl extends PureComponent {
                   </MenuItem>
                 </Dropdown.Menu>
               </Dropdown>
+            </ButtonGroup>
+            <ButtonGroup
+              btnStyle="flat"
+              btnSize="sm"
+              style={{
+                backgroundColor: 'white',
+                marginLeft: 5,
+              }}
+            >
+              <Button
+                title={i18n._('Import SVG / STL')}
+                onClick={this.handleClickImportSvg}
+                disabled={!canImportSvg}
+                style={{ minWidth: 0 }}
+              >
+                <i aria-hidden="true" className="fa fa-fw fa-file-image-o" />
+                {i18n._('Import SVG / STL')}
+              </Button>
             </ButtonGroup>
             <ButtonGroup
               btnStyle="flat"
