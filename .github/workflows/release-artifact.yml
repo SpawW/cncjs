@@ -1,0 +1,62 @@
+name: release-artifact
+
+# Builds the production bundle (dist/cncjs) and attaches it to the GitHub
+# Release for the pushed tag, so deployments (e.g. the Raspberry Pi) can fetch
+# a prebuilt artifact instead of compiling the webpack bundle on the device.
+#
+# Asset name: cncjs-<version>.tgz  (contents of dist/cncjs, no extra wrapper)
+# URL: https://github.com/<owner>/<repo>/releases/download/<tag>/cncjs-<version>.tgz
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and upload (e.g. v0.0.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Set up the project Yarn (Yarn 3 from .yarn/releases)
+        run: |
+          printf '#!/bin/sh\nexec node "%s/.yarn/releases/yarn-3.3.1.cjs" "$@"\n' "$GITHUB_WORKSPACE" | sudo tee /usr/local/bin/yarn >/dev/null
+          sudo chmod +x /usr/local/bin/yarn
+          yarn --version
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build production bundle
+        run: yarn build-prod
+
+      - name: Package dist/cncjs
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          tar -czf "cncjs-${VERSION}.tgz" -C dist/cncjs .
+          echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "ASSET=cncjs-${VERSION}.tgz" >> "$GITHUB_ENV"
+          ls -la "cncjs-${VERSION}.tgz"
+
+      - name: Create/update release and upload asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 \
+            || gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --generate-notes
+          gh release upload "$RELEASE_TAG" "$ASSET" --clobber

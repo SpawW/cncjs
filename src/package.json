@@ -36,6 +36,7 @@
     "express-session": "~1.16.1",
     "fast-xml-parser": "^5.11.2",
     "gcode-parser": "^2.2.0",
+    "gcode-toolpath": "^3.0.0",
     "hogan.js": "~3.0.2",
     "http-proxy": "~1.18.1",
     "i18next": "~25.8.17",

@@ -662,5 +662,13 @@
   "Drop G-code, SVG or STL file here": "",
   "Import SVG / STL": "",
   "Fan (M8)": "",
-  "Speed (mm/min)": ""
+  "Speed (mm/min)": "",
+  "Simulation running": "",
+  "Start": "",
+  "Simulate": "",
+  "The machine will move to the four corners of the work area and briefly turn on the laser at each corner.": "",
+  "The machine will follow the toolpath and turn on the laser where it would engrave.": "",
+  "This turns on the laser and moves the machine. Make sure the work area is clear and it is safe to operate the laser.": "",
+  "Trace engraving path": "",
+  "Trace work area": ""
 }
