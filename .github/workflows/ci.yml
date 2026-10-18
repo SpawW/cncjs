@@ -16,6 +16,8 @@ on:
 
 jobs:
   build-linux:
+    # [IMPORTANT] Prevent this action from running on forks
+    if: github.repository == 'cncjs/cncjs'
     # https://github.com/actions/runner-images?tab=readme-ov-file#available-images
     runs-on: ubuntu-latest
     strategy:
@@ -118,6 +120,8 @@ jobs:
           releases/linux/*
 
   build-macos-x64:
+    # [IMPORTANT] Prevent this action from running on forks
+    if: github.repository == 'cncjs/cncjs'
     # https://github.com/actions/runner-images?tab=readme-ov-file#available-images
     runs-on: macos-15-intel
     strategy:
@@ -200,6 +204,8 @@ jobs:
           releases/macos/*
 
   build-macos-arm64:
+    # [IMPORTANT] Prevent this action from running on forks
+    if: github.repository == 'cncjs/cncjs'
     # https://github.com/actions/runner-images?tab=readme-ov-file#available-images
     runs-on: macos-latest
     strategy:
@@ -282,6 +288,8 @@ jobs:
           releases/macos/*
 
   build-windows:
+    # [IMPORTANT] Prevent this action from running on forks
+    if: github.repository == 'cncjs/cncjs'
     # https://github.com/actions/runner-images?tab=readme-ov-file#available-images
     runs-on: windows-latest
     strategy:

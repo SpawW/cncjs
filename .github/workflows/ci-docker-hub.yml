@@ -8,6 +8,8 @@ on:
 
 jobs:
   build:
+    # [IMPORTANT] Prevent this action from running on forks
+    if: github.repository == 'cncjs/cncjs'
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -64,6 +66,8 @@ jobs:
         if-no-files-found: error
 
   deploy:
+    # [IMPORTANT] Prevent this action from running on forks
+    if: github.repository == 'cncjs/cncjs'
     needs: build
     runs-on: ubuntu-latest
     steps:
