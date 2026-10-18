@@ -652,7 +652,6 @@
   "File: {{name}}": "File: {{name}}",
   "Feed Rate (mm/min)": "Feed Rate (mm/min)",
   "Travel Rate (mm/min)": "Travel Rate (mm/min)",
-  "Power (S)": "Power (S)",
   "Laser Mode": "Laser Mode",
   "M4 - Dynamic power": "M4 - Dynamic power",
   "M3 - Constant power": "M3 - Constant power",
@@ -664,5 +663,5 @@
   "Offset X (mm)": "Offset X (mm)",
   "Offset Y (mm)": "Offset Y (mm)",
   "Fan (M8)": "Fan (M8)",
-  "Laser Power (S)": "Laser Power (S)"
+  "Speed (mm/min)": "Speed (mm/min)"
 }

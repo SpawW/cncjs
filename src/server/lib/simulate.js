@@ -1,4 +1,8 @@
 import { ensurePositiveNumber } from 'ensure-type';
+import Toolpath from 'gcode-toolpath';
+import logger from './logger';
+
+const log = logger('simulate');
 
 const toNumber = (value) => {
   const n = Number(value);
@@ -26,6 +30,58 @@ export const getWorkAreaCorners = (bbox = {}) => {
 
 const reSpindleSpeed = /[sS](\d+(?:\.\d+)?)/g;
 const reDwell = /^\s*G0?4(\s|$)/;
+// End-of-program finishing moves (added by the SVG/STL importer) are not part
+// of the design, so they are ignored when measuring the object and when tracing.
+const reParkMove = /;\s*(Park away from origin|Return to origin)/i;
+
+// Computes the XY bounding box of a G-code program, ignoring the end-of-program
+// park move. Used to trace the work area of the actual object (with any import
+// offset applied) without depending on the visualizer's state.
+// @param {string} gcode The loaded G-code program.
+// @return {{min: {x: number, y: number, z: number}, max: {x: number, y: number, z: number}}}
+export const getGcodeBounds = (gcode) => {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  const track = (x, y) => {
+    if (Number.isFinite(x)) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+    }
+    if (Number.isFinite(y)) {
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  };
+
+  const toolpath = new Toolpath({
+    // Track only the end point of each move, matching the visualizer, so the
+    // initial position (home) does not widen the object bounds.
+    addLine: (modal, v1, v2) => {
+      track(v2.x, v2.y);
+    },
+    addArcCurve: (modal, v1, v2) => {
+      track(v2.x, v2.y);
+    },
+  });
+
+  const content = String(gcode || '')
+    .split(/\r?\n/)
+    .filter(line => !reParkMove.test(line))
+    .join('\n');
+  toolpath.loadFromStringSync(content, () => {});
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+    return { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } };
+  }
+
+  return {
+    min: { x: minX, y: minY, z: 0 },
+    max: { x: maxX, y: maxY, z: 0 },
+  };
+};
 
 // Replays a G-code program with the laser (spindle) power clamped to a minimum.
 // A positive `S` word is lowered to the minimum power, while `S0` (laser off)
@@ -39,15 +95,17 @@ const reDwell = /^\s*G0?4(\s|$)/;
 export const buildTraceProgram = (gcode, power = 0, maxS = 1000) => {
   const minS = Number((ensurePositiveNumber(maxS) * (ensurePositiveNumber(power) / 100)).toFixed(3));
 
-  const lines = String(gcode || '').split(/\r?\n/).map((line) => {
-    if (reDwell.test(line)) {
-      return line;
-    }
+  const lines = String(gcode || '').split(/\r?\n/)
+    .filter(line => !reParkMove.test(line))
+    .map((line) => {
+      if (reDwell.test(line)) {
+        return line;
+      }
 
-    return line.replace(reSpindleSpeed, (match, value) => {
-      return (Number(value) > 0) ? `S${minS}` : 'S0';
+      return line.replace(reSpindleSpeed, (match, value) => {
+        return (Number(value) > 0) ? `S${minS}` : 'S0';
+      });
     });
-  });
 
   // Always turn the laser/spindle off when the simulation ends
   lines.push('M5');
@@ -69,12 +127,17 @@ export const createSimulationCommands = (controller, writeMotion, args = []) => 
     controller.command('gcode', buildTraceProgram(gcode, power, maxS));
   },
   'simulate:corners': () => {
-    const [bbox, power = 0, maxS = 1000, dwell = 300] = args;
-    getWorkAreaCorners(bbox).forEach(({ x, y }) => {
+    const [gcode, power = 0, maxS = 1000, dwell = 300] = args;
+    const bbox = getGcodeBounds(gcode);
+    const corners = getWorkAreaCorners(bbox);
+    const lines = String(gcode || '').split(/\r?\n/);
+    log.debug(`simulate:corners bbox=${JSON.stringify(bbox)} corners=${JSON.stringify(corners)}`);
+    log.debug(`simulate:corners gcode lines=${lines.length} head=${JSON.stringify(lines.slice(0, 10))} tail=${JSON.stringify(lines.slice(-6))}`);
+    corners.forEach(({ x, y }) => {
       writeMotion(`G0 X${x} Y${y}`);
       controller.command('lasertest:on', power, dwell, maxS);
     });
   },
 });
 
-export default { getWorkAreaCorners, buildTraceProgram, createSimulationCommands };
+export default { getWorkAreaCorners, getGcodeBounds, buildTraceProgram, createSimulationCommands };

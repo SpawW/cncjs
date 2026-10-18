@@ -18,6 +18,7 @@ import log from 'app/lib/log';
 import portal from 'app/lib/portal';
 import * as WebGL from 'app/lib/three/WebGL';
 import { in2mm } from 'app/lib/units';
+import { percentToS, resolveMaxS } from 'app/lib/laser';
 import WidgetConfig from '../WidgetConfig';
 import PrimaryToolbar from './PrimaryToolbar';
 import SecondaryToolbar from './SecondaryToolbar';
@@ -408,13 +409,17 @@ class VisualizerWidget extends PureComponent {
         console.assert(includes([WORKFLOW_STATE_IDLE, WORKFLOW_STATE_PAUSED], workflow.state));
 
         if (workflow.state === WORKFLOW_STATE_IDLE) {
-          const storedPower = this.config.get('run.power');
-          const power = Number.isFinite(storedPower) ? storedPower : this.findDefaultPower();
+          const storedPowerPercent = this.config.get('run.powerPercent');
+          const powerPercent = Number.isFinite(storedPowerPercent) ? storedPowerPercent : 100;
+          const storedFeedRate = this.config.get('run.feedRate');
+          const feedRate = Number.isFinite(storedFeedRate) ? storedFeedRate : this.findDefaultFeedRate();
           const fan = this.config.get('run.fan', true);
 
           this.actions.openModal(MODAL_RUN, {
-            power: power,
-            fan: fan
+            powerPercent: powerPercent,
+            feedRate: feedRate,
+            fan: fan,
+            maxS: resolveMaxS(this.state.controller)
           });
           return;
         }
@@ -496,7 +501,7 @@ class VisualizerWidget extends PureComponent {
         if (mode === SIMULATE_MODE_TRACE) {
           controller.command('simulate:trace', this.state.gcode.content, power, maxS);
         } else if (mode === SIMULATE_MODE_CORNERS) {
-          controller.command('simulate:corners', this.state.gcode.bbox, power, maxS);
+          controller.command('simulate:corners', this.state.gcode.content, power, maxS);
         }
 
         this.setState({
@@ -507,10 +512,12 @@ class VisualizerWidget extends PureComponent {
           }
         });
       },
-      runGCode: ({ power, fan }) => {
-        this.config.set('run.power', power);
+      runGCode: ({ powerPercent, feedRate, fan, maxS }) => {
+        this.config.set('run.powerPercent', powerPercent);
+        this.config.set('run.feedRate', feedRate);
         this.config.set('run.fan', fan);
 
+        const power = percentToS(powerPercent, maxS);
         let gcode = this.state.gcode.content || '';
 
         // Normalize fan: remove our marker fan lines, then inject if enabled
@@ -523,7 +530,7 @@ class VisualizerWidget extends PureComponent {
           gcode = 'M8 ; fan\n' + gcode + '\nM9 ; fan\n';
         }
 
-        // Apply power: replace S on M3/M4 lines
+        // Apply power (S on M3/M4 lines) and cutting speed (F on G1 lines)
         gcode = gcode
           .split('\n')
           .map(line => {
@@ -532,14 +539,13 @@ class VisualizerWidget extends PureComponent {
               if (/\bS\s*-?[0-9.]+/i.test(line)) {
                 return line.replace(/\bS\s*-?[0-9.]+/i, `S${power}`);
               }
-              // append S before comment if present
-              if (line.includes(';')) {
-                const idx = line.indexOf(';');
-                const codePart = line.substring(0, idx).trimRight();
-                const commentPart = line.substring(idx);
-                return codePart + ` S${power}` + commentPart;
+              return this.appendWord(line, `S${power}`);
+            }
+            if (/^G0?1\b/i.test(trimmed)) {
+              if (/\bF\s*-?[0-9.]+/i.test(line)) {
+                return line.replace(/\bF\s*-?[0-9.]+/i, `F${feedRate}`);
               }
-              return line.trimRight() + ` S${power}`;
+              return this.appendWord(line, `F${feedRate}`);
             }
             return line;
           })
@@ -1168,16 +1174,26 @@ class VisualizerWidget extends PureComponent {
       });
     }
 
-    findDefaultPower() {
+    appendWord(line, word) {
+      if (line.includes(';')) {
+        const idx = line.indexOf(';');
+        const codePart = line.substring(0, idx).trimRight();
+        const commentPart = line.substring(idx);
+        return `${codePart} ${word}${commentPart}`;
+      }
+      return `${line.trimRight()} ${word}`;
+    }
+
+    findDefaultFeedRate() {
       const gcode = this.state.gcode.content || '';
-      const match = gcode.match(/^\s*M[34]\b[^;\n]*\bS\s*(-?[0-9.]+)/im);
+      const match = gcode.match(/^\s*G0?1\b[^;\n]*\bF\s*([0-9.]+)/im);
       if (match) {
         const value = Number(match[1]);
         if (Number.isFinite(value) && value > 0) {
           return value;
         }
       }
-      return 1000;
+      return 300;
     }
 
     isAgitated() {

@@ -444,12 +444,6 @@ export const polylinesToGcode = (inputPolylines, options = {}) => {
     });
   }
 
-  lines.push('M5 ; Laser off');
-  lines.push('G0 X0 Y0 ; Return to origin');
-  if (enableFan) {
-    lines.push('M9 ; fan');
-  }
-
   const bbox = {
     minX: offsetX,
     minY: offsetY,
@@ -458,6 +452,22 @@ export const polylinesToGcode = (inputPolylines, options = {}) => {
     width: maxX - minX,
     height: maxY - minY,
   };
+
+  // Park at the corner opposite to the origin (home) so the finished part is
+  // clear of the laser head and can be removed safely. Uses the target given
+  // by the caller (e.g. the selected machine profile limits), otherwise falls
+  // back to the design bounds.
+  const parkX = opts.parkX == null ? NaN : num(opts.parkX, NaN);
+  const parkY = opts.parkY == null ? NaN : num(opts.parkY, NaN);
+  const hasPark = Number.isFinite(parkX) && Number.isFinite(parkY);
+  const parkTargetX = hasPark ? parkX : bbox.maxX;
+  const parkTargetY = hasPark ? parkY : bbox.maxY;
+
+  lines.push('M5 ; Laser off');
+  lines.push(`G0 X${fmt(parkTargetX)} Y${fmt(parkTargetY)} ; Park away from origin`);
+  if (enableFan) {
+    lines.push('M9 ; fan');
+  }
 
   return {
     gcode: lines.join('\n') + '\n',

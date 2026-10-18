@@ -284,7 +284,7 @@ describe('SmoothieController', () => {
     test('simulate:corners moves to the four corners and pulses the laser directly', () => {
       const { controller, writes } = create();
 
-      controller.command('simulate:corners', { min: { x: 0, y: 0 }, max: { x: 10, y: 20 } }, 1, 1000, 100);
+      controller.command('simulate:corners', 'G0 X0 Y0\nG1 X10 Y0\nG1 X10 Y20\nG1 X0 Y20', 1, 1000, 100);
 
       expect(written(writes)).toEqual([
         'G0 X0 Y0\n',

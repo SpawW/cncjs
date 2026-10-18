@@ -103,6 +103,24 @@ describe('svg-to-gcode', () => {
     expect(gcode).toContain('; Pass 3/3');
   });
 
+  test('parks at the corner opposite to the origin at the end', () => {
+    const { gcode, bbox } = convertSvgToGcode(
+      svg('<rect x="10" y="20" width="30" height="40"/>'),
+      { invertY: false }
+    );
+    const lastLine = gcode.trim().split('\n').pop();
+    expect(lastLine).toBe(`G0 X${bbox.maxX} Y${bbox.maxY} ; Park away from origin`);
+  });
+
+  test('parks at the given target when provided', () => {
+    const { gcode } = convertSvgToGcode(
+      svg('<rect x="10" y="20" width="30" height="40"/>'),
+      { invertY: false, parkX: 400, parkY: 300 }
+    );
+    const lastLine = gcode.trim().split('\n').pop();
+    expect(lastLine).toBe('G0 X400 Y300 ; Park away from origin');
+  });
+
   test('enables the fan with M8 at the start and M9 at the end when requested', () => {
     const { gcode } = convertSvgToGcode(
       svg('<line x1="0" y1="0" x2="10" y2="10"/>'),

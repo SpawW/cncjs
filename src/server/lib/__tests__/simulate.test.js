@@ -1,6 +1,7 @@
 /* eslint-env jest */
 import {
   getWorkAreaCorners,
+  getGcodeBounds,
   buildTraceProgram,
   createSimulationCommands,
 } from '../simulate';
@@ -67,6 +68,39 @@ describe('simulate', () => {
 
       expect(lines[lines.length - 1]).toBe('M5');
     });
+
+    test('skips the end-of-program park move', () => {
+      const gcode = 'G1 X1 Y1 S1000\nG0 X400 Y400 ; Park away from origin';
+      const lines = buildTraceProgram(gcode, 1, 1000).split('\n');
+
+      expect(lines.some(line => /Park away from origin/i.test(line))).toBe(false);
+      expect(lines.some(line => /X400/.test(line))).toBe(false);
+    });
+  });
+
+  describe('getGcodeBounds', () => {
+    test('returns the XY bounds of the object, including the import offset', () => {
+      const gcode = 'G0 X10 Y0\nG1 X30 Y0\nG1 X30 Y20\nG1 X10 Y20';
+      expect(getGcodeBounds(gcode)).toEqual({
+        min: { x: 10, y: 0, z: 0 },
+        max: { x: 30, y: 20, z: 0 },
+      });
+    });
+
+    test('ignores the end-of-program park move', () => {
+      const gcode = 'G0 X10 Y0\nG1 X30 Y20\nG0 X400 Y400 ; Park away from origin';
+      expect(getGcodeBounds(gcode)).toEqual({
+        min: { x: 10, y: 0, z: 0 },
+        max: { x: 30, y: 20, z: 0 },
+      });
+    });
+
+    test('returns zero bounds when there is no motion', () => {
+      expect(getGcodeBounds('G21\nG90\nM5')).toEqual({
+        min: { x: 0, y: 0, z: 0 },
+        max: { x: 0, y: 0, z: 0 },
+      });
+    });
   });
 
   describe('createSimulationCommands', () => {
@@ -85,9 +119,8 @@ describe('simulate', () => {
     test('simulate:corners moves to each corner and pulses the laser in order', () => {
       const controller = { command: jest.fn() };
       const writeMotion = jest.fn();
-      const commands = createSimulationCommands(controller, writeMotion, [
-        { min: { x: 0, y: 0 }, max: { x: 10, y: 10 } }, 1, 1000, 300,
-      ]);
+      const gcode = 'G0 X0 Y0\nG1 X10 Y0\nG1 X10 Y10\nG1 X0 Y10';
+      const commands = createSimulationCommands(controller, writeMotion, [gcode, 1, 1000, 300]);
 
       commands['simulate:corners']();
 
@@ -102,6 +135,28 @@ describe('simulate', () => {
         ['lasertest:on', 1, 300, 1000],
         ['lasertest:on', 1, 300, 1000],
         ['lasertest:on', 1, 300, 1000],
+      ]);
+    });
+
+    test('simulate:corners traces the object bounds including the import offset and ignoring the park', () => {
+      const controller = { command: jest.fn() };
+      const writeMotion = jest.fn();
+      const gcode = [
+        'G0 X10 Y0',
+        'G1 X30 Y0',
+        'G1 X30 Y20',
+        'G1 X10 Y20',
+        'G0 X400 Y400 ; Park away from origin',
+      ].join('\n');
+      const commands = createSimulationCommands(controller, writeMotion, [gcode, 1, 1000, 300]);
+
+      commands['simulate:corners']();
+
+      expect(writeMotion.mock.calls).toEqual([
+        ['G0 X10 Y0'],
+        ['G0 X30 Y0'],
+        ['G0 X30 Y20'],
+        ['G0 X10 Y20'],
       ]);
     });
   });

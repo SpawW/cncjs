@@ -6,9 +6,28 @@ import FormGroup from 'app/components/FormGroup';
 import { Row, Col } from 'app/components/GridSystem';
 import Modal from 'app/components/Modal';
 import { ToastNotification } from 'app/components/Notifications';
+import controller from 'app/lib/controller';
 import i18n from 'app/lib/i18n';
+import { percentToS, resolveMaxS } from 'app/lib/laser';
+import store from 'app/store';
 
-const parseOptions = (values) => {
+// Park target taken from the selected machine profile limits (the real bed
+// size the user configured in CNCjs), in work coordinates.
+const getParkTarget = () => {
+  const machineProfile = store.get('workspace.machineProfile');
+  const limits = machineProfile && machineProfile.limits;
+  if (!limits) {
+    return {};
+  }
+  const x = Number(limits.xmax);
+  const y = Number(limits.ymax);
+  if (Number.isFinite(x) && x > 0 && Number.isFinite(y) && y > 0) {
+    return { parkX: x, parkY: y };
+  }
+  return {};
+};
+
+const parseOptions = (values, maxS, park) => {
   const toNumber = (value, fallback) => {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
@@ -24,7 +43,7 @@ const parseOptions = (values) => {
   return {
     feedRate: toNumber(values.feedRate, 300),
     travelRate: toNumber(values.travelRate, 3000),
-    power: toNumber(values.power, 1000),
+    power: percentToS(toNumber(values.powerPercent, 100), maxS),
     laserMode: values.laserMode === 'M3' ? 'M3' : 'M4',
     passes: Math.max(1, Math.round(toNumber(values.passes, 1))),
     focusZ: optionalNumber(values.focusZ),
@@ -34,11 +53,14 @@ const parseOptions = (values) => {
     offsetY: toNumber(values.offsetY, 0),
     invertY: values.invertY !== 'no',
     fan: values.fan !== 'no',
+    ...park,
   };
 };
 
 const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
   const isStl = mode === 'stl';
+  const maxS = resolveMaxS(controller);
+  const park = getParkTarget();
 
   return (
     <Modal size="sm" disableOverlay onClose={onClose}>
@@ -46,7 +68,7 @@ const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
         initialValues={{
           feedRate: 300,
           travelRate: 3000,
-          power: 1000,
+          powerPercent: 100,
           laserMode: 'M4',
           passes: 1,
           focusZ: '',
@@ -54,10 +76,10 @@ const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
           scale: 1,
           offsetX: 0,
           offsetY: 0,
-          invertY: 'yes',
+          invertY: 'no',
           fan: 'yes',
         }}
-        onSubmit={(values) => onSubmit(parseOptions(values))}
+        onSubmit={(values) => onSubmit(parseOptions(values, maxS, park))}
         render={({ handleSubmit, invalid, submitting, submitError }) => (
           <div>
             <Modal.Header>
@@ -120,11 +142,17 @@ const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
               </Row>
               <Row>
                 <Col>
-                  <Field name="power">
+                  <Field name="powerPercent">
                     {({ input }) => (
                       <FormGroup>
-                        <label>{i18n._('Power (S)')}</label>
-                        <Input aria-label="Power" {...input} type="number" />
+                        <label>{i18n._('Power (%)')}</label>
+                        <Input
+                          aria-label="Power (%)" {...input} type="number"
+                          min={0} max={100} step={1}
+                        />
+                        <small className="text-muted">
+                          {`= S${percentToS(input.value, maxS)} · ${i18n._('Maximum value')} S${maxS}`}
+                        </small>
                       </FormGroup>
                     )}
                   </Field>

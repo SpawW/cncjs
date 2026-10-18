@@ -53,6 +53,15 @@ const CAMERA_DISTANCE = 200; // Move the camera out a bit from the origin (0, 0,
 const TRACKBALL_CONTROLS_MIN_DISTANCE = 1;
 const TRACKBALL_CONTROLS_MAX_DISTANCE = 2000;
 
+// End-of-program park moves added by the SVG/STL importer are not part of the
+// design. Exclude them from the toolpath so they neither extend the bounding
+// box (which drives the "trace work area" simulation) nor draw a line to the
+// corner in the 3D view.
+const reParkMove = /;\s*(Park away from origin|Return to origin)/i;
+const stripParkMoves = (gcode) => (
+  String(gcode).split('\n').filter(line => !reParkMove.test(line)).join('\n')
+);
+
 class Visualizer extends Component {
     static propTypes = {
       show: PropTypes.bool,
@@ -1239,7 +1248,7 @@ class Visualizer extends Component {
 
       this.gcodeVisualizer = new GCodeVisualizer();
 
-      const obj = this.gcodeVisualizer.render(gcode);
+      const obj = this.gcodeVisualizer.render(stripParkMoves(gcode));
       obj.name = 'Visualizer';
       this.group.add(obj);
 

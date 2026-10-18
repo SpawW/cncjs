@@ -649,7 +649,6 @@
   "File: {{name}}": "",
   "Feed Rate (mm/min)": "",
   "Travel Rate (mm/min)": "",
-  "Power (S)": "",
   "Laser Mode": "",
   "M4 - Dynamic power": "",
   "M3 - Constant power": "",
@@ -665,5 +664,5 @@
   "Drop G-code, SVG or STL file here": "",
   "Import SVG / STL": "",
   "Fan (M8)": "",
-  "Laser Power (S)": ""
+  "Speed (mm/min)": ""
 }
