@@ -100,6 +100,19 @@ describe('stl-to-gcode', () => {
     expect(bbox.height).toBeCloseTo(20, 6);
   });
 
+  test('fills a sliced contour when requested', () => {
+    const { gcode } = convertStlToGcode(writeAsciiStl(boxTriangles(20, 10, 5)), {
+      invertY: false,
+      engraveMode: 'fill',
+      fillSpacing: 1,
+    });
+
+    expect(isFiniteGcode(gcode)).toBe(true);
+    expect(gcode).toContain('; Fill spacing 1 mm');
+    const moves = gcode.split('\n').filter(line => line.startsWith('G1'));
+    expect(moves.length).toBeGreaterThan(4);
+  });
+
   test('enables the fan when requested', () => {
     const { gcode } = convertStlToGcode(writeAsciiStl(boxTriangles(20, 10, 5)), {
       invertY: false,

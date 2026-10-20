@@ -673,5 +673,11 @@
   "The machine will follow the toolpath and turn on the laser where it would engrave.": "",
   "This turns on the laser and moves the machine. Make sure the work area is clear and it is safe to operate the laser.": "",
   "Trace engraving path": "",
-  "Trace work area": ""
+  "Trace work area": "",
+  "Engraving Mode": "",
+  "Line (outline)": "",
+  "Fill (hatch)": "",
+  "Line + Fill": "",
+  "Fill Spacing (mm)": "",
+  "Fill Angle (deg)": ""
 }

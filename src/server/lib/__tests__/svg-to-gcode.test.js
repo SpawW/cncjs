@@ -94,6 +94,113 @@ describe('svg-to-gcode', () => {
     expect(gcode).toContain('G1 X0 Y0');
   });
 
+  test('line mode only traces the contours', () => {
+    const { gcode } = convertSvgToGcode(
+      svg('<rect x="0" y="0" width="10" height="10"/>'),
+      { invertY: false }
+    );
+    const moves = gcode.split('\n').filter(line => line.startsWith('G1'));
+    expect(moves.length).toBe(4);
+    expect(gcode).not.toContain('; Fill spacing');
+  });
+
+  test('fill mode hatches the interior of closed shapes', () => {
+    const { gcode } = convertSvgToGcode(
+      svg('<rect x="0" y="0" width="10" height="10"/>'),
+      { invertY: false, engraveMode: 'fill', fillSpacing: 2 }
+    );
+    const moves = gcode.split('\n').filter(line => line.startsWith('G1'));
+    // Horizontal scan lines at y = 0, 2, 4, 6 and 8.
+    expect(moves.length).toBe(5);
+    expect(gcode).toContain('; Fill spacing 2 mm, angle 0 deg');
+  });
+
+  test('fill spacing controls the number of hatch lines', () => {
+    const countMoves = (fillSpacing) => convertSvgToGcode(
+      svg('<rect x="0" y="0" width="10" height="10"/>'),
+      { invertY: false, engraveMode: 'fill', fillSpacing }
+    ).gcode.split('\n').filter(line => line.startsWith('G1')).length;
+
+    expect(countMoves(1)).toBeGreaterThan(countMoves(2));
+  });
+
+  test('fill angle rotates the hatch lines', () => {
+    const { gcode } = convertSvgToGcode(
+      svg('<rect x="0" y="0" width="20" height="10"/>'),
+      { invertY: false, engraveMode: 'fill', fillSpacing: 5, fillAngle: 90 }
+    );
+    const lines = gcode.split('\n');
+    const index = lines.findIndex(line => line.startsWith('G1'));
+    const g0Line = lines.slice(0, index).reverse().find(line => line.startsWith('G0 X'));
+    const g0 = /^G0 X([-\d.]+) Y([-\d.]+)/.exec(g0Line);
+    const g1 = /^G1 X([-\d.]+) Y([-\d.]+)/.exec(lines[index]);
+
+    // A 90 degree hatch is vertical: X stays the same and Y changes.
+    expect(g1[1]).toBe(g0[1]);
+    expect(g1[2]).not.toBe(g0[2]);
+  });
+
+  test('fill honours the offsets and Y inversion', () => {
+    const { gcode } = convertSvgToGcode(
+      svg('<rect x="0" y="0" width="10" height="10"/>'),
+      {
+        invertY: true,
+        engraveMode: 'fill',
+        fillSpacing: 5,
+        offsetX: 100,
+        offsetY: 50,
+        parkX: 0,
+        parkY: 0,
+      }
+    );
+
+    expect(gcode).toContain('G1 X110 Y50');
+  });
+
+  test('fill mode unions overlapping shapes instead of carving a hole', () => {
+    const { gcode } = convertSvgToGcode(
+      svg(
+        '<rect x="0" y="0" width="10" height="10"/>' +
+        '<rect x="5" y="0" width="10" height="10"/>'
+      ),
+      { invertY: false, engraveMode: 'fill', fillSpacing: 2 }
+    );
+
+    // The first rectangle is filled from x=0 to x=10; a global even-odd pass
+    // would stop at x=5 because of the overlap.
+    expect(gcode).toContain('G1 X10 Y0');
+  });
+
+  test('fill mode respects holes in nested contours', () => {
+    const { gcode } = convertSvgToGcode(
+      svg('<path d="M0,0 H10 V10 H0 Z M3,3 H7 V7 H3 Z"/>'),
+      { invertY: false, engraveMode: 'fill', fillSpacing: 2 }
+    );
+    const moves = gcode.split('\n').filter(line => line.startsWith('G1'));
+    // y = 0, 2 and 8 cross the outer shape only; y = 4 and 6 are split by
+    // the hole, producing two segments each.
+    expect(moves.length).toBe(7);
+  });
+
+  test('both mode combines the hatch fill and the outline', () => {
+    const options = { invertY: false, fillSpacing: 2 };
+    const countMoves = (extra) => convertSvgToGcode(
+      svg('<rect x="0" y="0" width="10" height="10"/>'),
+      { ...options, ...extra }
+    ).gcode.split('\n').filter(line => line.startsWith('G1')).length;
+
+    expect(countMoves({ engraveMode: 'both' })).toBe(
+      countMoves({ engraveMode: 'fill' }) + countMoves({ engraveMode: 'line' })
+    );
+  });
+
+  test('fill mode rejects geometry without closed shapes', () => {
+    expect(() => convertSvgToGcode(
+      svg('<line x1="0" y1="0" x2="10" y2="10"/>'),
+      { engraveMode: 'fill' }
+    )).toThrow('No closed geometry found for fill mode');
+  });
+
   test('repeats the toolpath for multiple passes', () => {
     const { gcode } = convertSvgToGcode(
       svg('<line x1="0" y1="0" x2="10" y2="10"/>'),

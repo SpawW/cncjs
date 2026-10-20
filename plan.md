@@ -153,3 +153,13 @@ Slicing horizontal do mesh para gerar contornos 2D, reaproveitando o emissor de 
 
 **Verificar:** soltar um `.stl` -> contorno no Visualizer. Testado E2E com `Base plakit v2.stl`
 (60x30mm, 52 linhas) e `MECPOW - Regua.stl` (120x120mm).
+
+## Fase 8 - Modos de gravação (Line / Fill / Both)
+
+- Novas opções `engraveMode` (`line`, `fill`, `both`), `fillSpacing` (mm) e `fillAngle` (graus)
+  em `polylinesToGcode`, partilhadas por SVG e STL.
+- O Fill gera linhas de hachura com regra even-odd (buracos ficam vazios). No SVG cada forma é
+  preenchida individualmente (formas sobrepostas fazem união); no STL os contornos do slice são
+  tratados como um único grupo.
+- O modal de importação tem o seletor **Engraving Mode**, campos de espaçamento/ângulo e guarda os
+  últimos valores em `localStorage` (`cncjs.import.lastValues`).

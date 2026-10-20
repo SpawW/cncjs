@@ -11,6 +11,79 @@ import i18n from 'app/lib/i18n';
 import { percentToS, resolveMaxS } from 'app/lib/laser';
 import store from 'app/store';
 
+const STORAGE_KEY = 'cncjs.import.lastValues';
+
+const DEFAULT_VALUES = {
+  feedRate: 300,
+  travelRate: 3000,
+  powerPercent: 100,
+  laserMode: 'M4',
+  engraveMode: 'line',
+  fillSpacing: 0.2,
+  fillAngle: 0,
+  passes: 1,
+  focusZ: '',
+  z: '',
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+  invertY: 'no',
+  fan: 'yes',
+};
+
+// Restore the last values used in this dialog. Unknown keys are discarded so
+// stale entries never leak into the form.
+const sanitizeStoredValue = (key, value) => {
+  if (key === 'engraveMode') {
+    return ['line', 'fill', 'both'].includes(value) ? value : undefined;
+  }
+  if (key === 'laserMode') {
+    return value === 'M3' || value === 'M4' ? value : undefined;
+  }
+  if (key === 'invertY' || key === 'fan') {
+    return value === 'yes' || value === 'no' ? value : undefined;
+  }
+  return value;
+};
+
+const readStoredValues = () => {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+    const values = {};
+    Object.keys(DEFAULT_VALUES).forEach((key) => {
+      const value = sanitizeStoredValue(key, parsed[key]);
+      if (value !== undefined && value !== null) {
+        values[key] = value;
+      }
+    });
+    return values;
+  } catch (err) {
+    // Ignore unavailable or corrupted storage
+    return {};
+  }
+};
+
+const writeStoredValues = (values) => {
+  try {
+    const stored = {};
+    Object.keys(DEFAULT_VALUES).forEach((key) => {
+      if (values[key] !== undefined) {
+        stored[key] = values[key];
+      }
+    });
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+  } catch (err) {
+    // Ignore unavailable storage (private mode or quota exceeded)
+  }
+};
+
 // Park target taken from the selected machine profile limits (the real bed
 // size the user configured in CNCjs), in work coordinates.
 const getParkTarget = () => {
@@ -45,6 +118,9 @@ const parseOptions = (values, maxS, park) => {
     travelRate: toNumber(values.travelRate, 3000),
     power: percentToS(toNumber(values.powerPercent, 100), maxS),
     laserMode: values.laserMode === 'M3' ? 'M3' : 'M4',
+    engraveMode: ['line', 'fill', 'both'].includes(values.engraveMode) ? values.engraveMode : 'line',
+    fillSpacing: Math.max(0.01, toNumber(values.fillSpacing, 0.2)),
+    fillAngle: toNumber(values.fillAngle, 0),
     passes: Math.max(1, Math.round(toNumber(values.passes, 1))),
     focusZ: optionalNumber(values.focusZ),
     z: optionalNumber(values.z),
@@ -61,26 +137,17 @@ const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
   const isStl = mode === 'stl';
   const maxS = resolveMaxS(controller);
   const park = getParkTarget();
+  const initialValues = { ...DEFAULT_VALUES, ...readStoredValues() };
 
   return (
     <Modal size="sm" disableOverlay onClose={onClose}>
       <Form
-        initialValues={{
-          feedRate: 300,
-          travelRate: 3000,
-          powerPercent: 100,
-          laserMode: 'M4',
-          passes: 1,
-          focusZ: '',
-          z: '',
-          scale: 1,
-          offsetX: 0,
-          offsetY: 0,
-          invertY: 'no',
-          fan: 'yes',
+        initialValues={initialValues}
+        onSubmit={(values) => {
+          writeStoredValues(values);
+          onSubmit(parseOptions(values, maxS, park));
         }}
-        onSubmit={(values) => onSubmit(parseOptions(values, maxS, park))}
-        render={({ handleSubmit, invalid, submitting, submitError }) => (
+        render={({ handleSubmit, invalid, submitting, submitError, values }) => (
           <div>
             <Modal.Header>
               <Modal.Title>
@@ -171,6 +238,55 @@ const SvgImport = ({ fileName, mode = 'svg', onClose, onSubmit }) => {
                   </Field>
                 </Col>
               </Row>
+              <Row>
+                <Col>
+                  <Field name="engraveMode">
+                    {({ input }) => (
+                      <FormGroup>
+                        <label>{i18n._('Engraving Mode')}</label>
+                        <select aria-label="Engraving Mode" className="form-control" {...input}>
+                          <option value="line">{i18n._('Line (outline)')}</option>
+                          <option value="fill">{i18n._('Fill (hatch)')}</option>
+                          <option value="both">{i18n._('Line + Fill')}</option>
+                        </select>
+                      </FormGroup>
+                    )}
+                  </Field>
+                </Col>
+                <Col>
+                  {values.engraveMode !== 'line' && (
+                    <Field name="fillSpacing">
+                      {({ input }) => (
+                        <FormGroup>
+                          <label>{i18n._('Fill Spacing (mm)')}</label>
+                          <Input
+                            aria-label="Fill Spacing" {...input} type="number"
+                            min={0.01} step={0.01}
+                          />
+                        </FormGroup>
+                      )}
+                    </Field>
+                  )}
+                </Col>
+              </Row>
+              {values.engraveMode !== 'line' && (
+                <Row>
+                  <Col>
+                    <Field name="fillAngle">
+                      {({ input }) => (
+                        <FormGroup>
+                          <label>{i18n._('Fill Angle (deg)')}</label>
+                          <Input
+                            aria-label="Fill Angle" {...input} type="number"
+                            step={1}
+                          />
+                        </FormGroup>
+                      )}
+                    </Field>
+                  </Col>
+                  <Col />
+                </Row>
+              )}
               <Row>
                 <Col>
                   <Field name="passes">

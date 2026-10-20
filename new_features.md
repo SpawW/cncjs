@@ -6,7 +6,9 @@
 
 **1. Import SVG/STL straight to laser G-code**
 - Import **SVG** (vectors: path/rect/circle/etc.) and **STL** (sliced at a given Z) from the Workspace (button or drag-and-drop); both are converted to laser G-code (`G21/G90`, `M3/M4`, `G0/G1`).
-- Options: feed rate, travel rate, power, laser mode (M3/M4), passes, focus Z, scale, invert Y, X/Y offsets, slice Z (STL) and fan.
+- Options: feed rate, travel rate, power, laser mode (M3/M4), engraving mode, passes, focus Z, scale, invert Y, X/Y offsets, slice Z (STL) and fan.
+- **Engraving mode**: **Line** (outline only, the previous behaviour), **Fill** (parallel hatch lines) or **Line + Fill**. Fill has configurable spacing and angle, uses the even-odd rule so holes stay empty, and fills overlapping shapes as a union.
+- The import dialog remembers the last used values in `localStorage`.
 - New API endpoints (`api.svg`, `api.stl`) and conversion libraries (`svg-to-gcode`, `stl-to-gcode`).
 
 **2. Simulation (menu next to the Run button)**
