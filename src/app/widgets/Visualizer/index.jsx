@@ -579,6 +579,15 @@ class VisualizerWidget extends PureComponent {
           controller.command('gcode:start');
         });
       },
+      // Starts the G-code that was already loaded by the server (used after
+      // regenerating from an SVG/STL import). Power/feed/fan are already in
+      // the generated G-code; this only remembers the run configuration.
+      startGCode: ({ powerPercent, feedRate, fan }) => {
+        this.config.set('run.powerPercent', powerPercent);
+        this.config.set('run.feedRate', feedRate);
+        this.config.set('run.fan', fan);
+        controller.command('gcode:start');
+      },
       cancelSimulate: () => {
         controller.command('feeder:stop');
         controller.command('lasertest:off');

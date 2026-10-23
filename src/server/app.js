@@ -299,6 +299,13 @@ const appMain = () => {
     app.put(urljoin(settings.route, 'api/machines/:id'), api.machines.update);
     app.delete(urljoin(settings.route, 'api/machines/:id'), api.machines.__delete);
 
+    // Laser / Job Profiles
+    app.get(urljoin(settings.route, 'api/profiles'), api.profiles.fetch);
+    app.post(urljoin(settings.route, 'api/profiles'), api.profiles.create);
+    app.get(urljoin(settings.route, 'api/profiles/:id'), api.profiles.read);
+    app.put(urljoin(settings.route, 'api/profiles/:id'), api.profiles.update);
+    app.delete(urljoin(settings.route, 'api/profiles/:id'), api.profiles.__delete);
+
     // Macros
     app.get(urljoin(settings.route, 'api/macros'), api.macros.fetch);
     app.post(urljoin(settings.route, 'api/macros'), api.macros.create);

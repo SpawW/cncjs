@@ -12,6 +12,7 @@ import {
 } from 'app/constants';
 import controller from 'app/lib/controller';
 import i18n from 'app/lib/i18n';
+import { setLastImport } from 'app/lib/lastImport';
 import log from 'app/lib/log';
 import store from 'app/store';
 import * as widgetManager from './WidgetManager';
@@ -322,6 +323,8 @@ class Workspace extends PureComponent {
           .then((res) => {
             const { name = '', gcode = '' } = { ...res.body };
             pubsub.publish('gcode:load', { name, gcode });
+            // A plain G-code file has no source geometry to regenerate from.
+            setLastImport(null);
           })
           .catch((res) => {
             log.error('Failed to upload G-code file');
@@ -374,6 +377,13 @@ class Workspace extends PureComponent {
             .then((res) => {
               const { name = '', gcode = '' } = { ...res.body };
               pubsub.publish('gcode:load', { name, gcode });
+              setLastImport({
+                mode: 'svg',
+                port,
+                name: file.name,
+                content: result,
+                options,
+              });
               resolve();
             })
             .catch((res) => {
@@ -424,6 +434,13 @@ class Workspace extends PureComponent {
             .then((res) => {
               const { name = '', gcode = '' } = { ...res.body };
               pubsub.publish('gcode:load', { name, gcode });
+              setLastImport({
+                mode: 'stl',
+                port,
+                name: file.name,
+                content: stl,
+                options,
+              });
               resolve();
             })
             .catch((res) => {

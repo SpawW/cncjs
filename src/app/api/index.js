@@ -754,6 +754,74 @@ machines.run = (id) => new Promise((resolve, reject) => {
     });
 });
 
+//
+// Laser / Job Profiles
+//
+const profiles = {};
+
+profiles.fetch = (options) => new Promise((resolve, reject) => {
+  authrequest
+    .get('/api/profiles')
+    .query(options)
+    .end((err, res) => {
+      if (err) {
+        reject(res);
+      } else {
+        resolve(res);
+      }
+    });
+});
+
+profiles.create = (options) => new Promise((resolve, reject) => {
+  authrequest
+    .post('/api/profiles')
+    .send(options)
+    .end((err, res) => {
+      if (err) {
+        reject(res);
+      } else {
+        resolve(res);
+      }
+    });
+});
+
+profiles.read = (id) => new Promise((resolve, reject) => {
+  authrequest
+    .get('/api/profiles/' + id)
+    .end((err, res) => {
+      if (err) {
+        reject(res);
+      } else {
+        resolve(res);
+      }
+    });
+});
+
+profiles.update = (id, options) => new Promise((resolve, reject) => {
+  authrequest
+    .put('/api/profiles/' + id)
+    .send(options)
+    .end((err, res) => {
+      if (err) {
+        reject(res);
+      } else {
+        resolve(res);
+      }
+    });
+});
+
+profiles.delete = (id) => new Promise((resolve, reject) => {
+  authrequest
+    .delete('/api/profiles/' + id)
+    .end((err, res) => {
+      if (err) {
+        reject(res);
+      } else {
+        resolve(res);
+      }
+    });
+});
+
 export default {
   getLatestVersion,
 
@@ -786,6 +854,7 @@ export default {
   commands,
   events,
   machines,
+  profiles,
   macros,
   mdi,
   users,

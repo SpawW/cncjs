@@ -22,6 +22,7 @@ import store from 'app/store';
 import General from './General';
 import Workspace from './Workspace';
 import MachineProfiles from './MachineProfiles';
+import LaserProfiles from './LaserProfiles';
 import UserAccounts from './UserAccounts';
 import Controller from './Controller';
 import Commands from './Commands';
@@ -62,6 +63,12 @@ class Settings extends PureComponent {
         path: 'machine-profiles',
         title: i18n._('Machine Profiles'),
         component: (props) => <MachineProfiles {...props} />
+      },
+      {
+        id: 'laserProfiles',
+        path: 'laser-profiles',
+        title: i18n._('Laser Profiles'),
+        component: (props) => <LaserProfiles {...props} />
       },
       {
         id: 'userAccounts',
@@ -556,6 +563,135 @@ class Settings extends PureComponent {
                 ...this.state.machineProfiles.modal,
                 params: {
                   ...this.state.machineProfiles.modal.params,
+                  ...params
+                }
+              }
+            }
+          });
+        }
+      },
+      // Laser Profiles
+      laserProfiles: {
+        fetchRecords: (options) => {
+          const state = this.state.laserProfiles;
+          const {
+            page = state.pagination.page,
+            pageLength = state.pagination.pageLength
+          } = { ...options };
+
+          this.setState({
+            laserProfiles: {
+              ...state,
+              api: {
+                ...state.api,
+                err: false,
+                fetching: true
+              }
+            }
+          });
+
+          api.profiles.fetch({ paging: true, page, pageLength })
+            .then((res) => {
+              const { pagination, records } = res.body;
+
+              this.setState({
+                laserProfiles: {
+                  ...this.state.laserProfiles,
+                  api: {
+                    ...this.state.laserProfiles.api,
+                    err: false,
+                    fetching: false
+                  },
+                  pagination: {
+                    page: pagination.page,
+                    pageLength: pagination.pageLength,
+                    totalRecords: pagination.totalRecords
+                  },
+                  records: records
+                }
+              });
+            })
+            .catch((res) => {
+              this.setState({
+                laserProfiles: {
+                  ...this.state.laserProfiles,
+                  api: {
+                    ...this.state.laserProfiles.api,
+                    err: true,
+                    fetching: false
+                  },
+                  records: []
+                }
+              });
+            });
+        },
+        createRecord: (options) => {
+          const actions = this.actions.laserProfiles;
+
+          api.profiles.create(options)
+            .then((res) => {
+              actions.closeModal();
+              actions.fetchRecords();
+            })
+            .catch((res) => {
+              const msg = _get(res, 'body.msg') || i18n._('An unexpected error has occurred.');
+              actions.updateModalParams({ alertMessage: msg });
+            });
+        },
+        updateRecord: (id, options, forceReload = false) => {
+          const actions = this.actions.laserProfiles;
+
+          api.profiles.update(id, options)
+            .then((res) => {
+              actions.closeModal();
+              actions.fetchRecords();
+            })
+            .catch((res) => {
+              const msg = _get(res, 'body.msg') || i18n._('An unexpected error has occurred.');
+              actions.updateModalParams({ alertMessage: msg });
+            });
+        },
+        deleteRecord: (id) => {
+          const actions = this.actions.laserProfiles;
+
+          api.profiles.delete(id)
+            .then((res) => {
+              actions.fetchRecords();
+            })
+            .catch((res) => {
+              // Ignore error
+            });
+        },
+        openModal: (name = '', params = {}) => {
+          this.setState({
+            laserProfiles: {
+              ...this.state.laserProfiles,
+              modal: {
+                name: name,
+                params: params
+              }
+            }
+          });
+        },
+        closeModal: () => {
+          this.setState({
+            laserProfiles: {
+              ...this.state.laserProfiles,
+              modal: {
+                name: '',
+                params: {}
+              }
+            }
+          });
+        },
+        updateModalParams: (params = {}) => {
+          this.setState({
+            laserProfiles: {
+              ...this.state.laserProfiles,
+              modal: {
+                ...this.state.laserProfiles.modal,
+                params: {
+                  ...this.state.laserProfiles.modal.params,
                   ...params
                 }
               }
@@ -1107,6 +1243,24 @@ class Settings extends PureComponent {
         },
         // Machine Profiles
         machineProfiles: {
+          api: {
+            err: false,
+            fetching: false
+          },
+          pagination: {
+            page: 1,
+            pageLength: 10,
+            totalRecords: 0
+          },
+          records: [],
+          modal: {
+            name: '',
+            params: {
+            }
+          }
+        },
+        // Laser Profiles
+        laserProfiles: {
           api: {
             err: false,
             fetching: false

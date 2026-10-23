@@ -15,6 +15,11 @@ set -e
 export PATH="$PWD/node_modules/.bin:$PATH"
 export NODE_ENV=development
 
+# Keep the config file (Machine Profiles, Laser Profiles, macros, ...) outside
+# the container filesystem. docker-compose sets CNCJS_CONFIG_FILE to a named
+# volume; locally it defaults to ~/.cncrc, the same as the CLI default.
+export CNCJS_CONFIG_FILE="${CNCJS_CONFIG_FILE:-$HOME/.cncrc}"
+
 exec concurrently --kill-others-on-fail --names "babel-watch,server" \
   "babel --watch -d output/cncjs/server src/server" \
-  "nodemon --watch output/cncjs/server --delay 400ms --signal SIGTERM --exec 'node ./bin/cncjs --port 8000 -m /widget:https://cncjs.github.io/cncjs-widget-boilerplate/v1/'"
+  "nodemon --watch output/cncjs/server --delay 400ms --signal SIGTERM --exec 'node ./bin/cncjs --port 8000 --config \"$CNCJS_CONFIG_FILE\" -m /widget:https://cncjs.github.io/cncjs-widget-boilerplate/v1/'"

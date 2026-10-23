@@ -163,3 +163,127 @@ Slicing horizontal do mesh para gerar contornos 2D, reaproveitando o emissor de 
   tratados como um único grupo.
 - O modal de importação tem o seletor **Engraving Mode**, campos de espaçamento/ângulo e guarda os
   últimos valores em `localStorage` (`cncjs.import.lastValues`).
+
+## Fase 9 - Perfis de Laser (perfis de material/operação)
+
+### Objetivo
+
+Salvar, selecionar e editar perfis de gravação/corte (potência, velocidade, passes, modo de
+gravação, fill, air assist), organizados por material e vinculados ao **Machine Profile** ativo.
+Os perfis ficam persistidos no servidor.
+
+### Decisões
+
+| Tema | Decisão |
+|---|---|
+| Máquina | Mecpow M1, laser diodo 3.5 W |
+| Processo | Somente laser: **gravar** e **cortar** (`line`/`fill`/`both`) |
+| Vínculo | Todo perfil pertence a um `machineProfileId` |
+| Persistência | Servidor via `configstore` (`~/.cncrc`, chave `jobProfiles`) |
+| Diálogo de importação | Selecionar, editar, **Salvar** (atualiza) e **Salvar como** |
+| Z | Fora do MVP: `focusZ`/`z`/`zStep` não entram no perfil |
+| Setup do job | Fora do perfil: `scale`, `invertY`, `offsetX`, `offsetY`, slice Z |
+
+### Modelo de dados
+
+```json
+{
+  "id": "uuid",
+  "version": 1,
+  "machineProfileId": "uuid",
+  "name": "MDF 3mm — Corte",
+  "material": "wood",
+  "materialLabel": "MDF",
+  "thickness": 3,
+  "operation": "cut",
+  "notes": "",
+  "favorite": false,
+  "params": {
+    "powerPercent": 100,
+    "laserMode": "M4",
+    "feedRate": 150,
+    "travelRate": 3000,
+    "passes": 4,
+    "engraveMode": "line",
+    "fillSpacing": 0.2,
+    "fillAngle": 0,
+    "fan": true
+  },
+  "createdAt": "ISO",
+  "updatedAt": "ISO"
+}
+```
+
+`powerPercent` é sempre armazenado em `%` e convertido para `S` no momento do import
+(`$30` do Grbl), para o perfil funcionar em qualquer controlador.
+
+### Persistência
+
+- `src/server/services/configstore` grava JSON em `~/.cncrc` (configurável com `--config`).
+- Mesmo padrão de `api.machines.js`: `CONFIG_KEY = 'jobProfiles'`, `config.get` / `config.set`.
+- Limitações aceitáveis: JSON único, sem transações, uma instância de servidor.
+- Docker dev: o `docker-compose.yml` usa o volume nomeado `cncjs-config` em `/data/.cncrc`
+  (`CNCJS_CONFIG_FILE`), então os perfis sobrevivem a `docker compose down/up`.
+
+### API e arquivos
+
+```
+GET    /api/profiles[?machineProfileId=...]
+POST   /api/profiles
+GET    /api/profiles/:id
+PUT    /api/profiles/:id
+DELETE /api/profiles/:id
+```
+
+- `src/server/api/api.profiles.js` + testes em `src/server/api/__tests__/api.profiles.test.js`
+- `src/server/api/index.js`, `src/server/app.js`
+- `src/app/api/index.js` (namespace `profiles`)
+- `src/app/lib/laserProfiles.js` (enums, defaults, sanitização, conversão perfil ↔ formulário)
+- `src/app/containers/Settings/LaserProfiles/` (CRUD)
+- `src/app/containers/Settings/Settings.jsx` (nova seção)
+- `src/app/containers/Workspace/modals/SvgImport.jsx` e `SaveProfileModal.jsx`
+- `src/app/widgets/Visualizer/RunModal.jsx` (seletor + salvar no perfil)
+
+### UX
+
+- **Importação:** seletor de perfil no topo, resumo (`material · espessura · operação · potência ·
+  feed · passes`), badge `alterado`, botões `Salvar`, `Salvar como…`, `Restaurar`. Último perfil
+  usado por máquina fica em `localStorage` (`cncjs.import.lastProfile.<machineProfileId>`).
+- **Layout do modal:** abas **Laser**, **Gravação** e **Posicionamento**, campos em grade
+  responsiva (160–220 px por campo), modal largo (95vw, máx. 1100 px) e corpo com rolagem
+  vertical em telas baixas.
+- **Settings:** tabela com Nome, Máquina, Material, Espessura, Operação, Potência, Feed, Passes,
+  Favorito e ações (editar, duplicar, excluir).
+- **Run (PLAY):** diálogo largo com abas **Laser**, **Gravação** e **Posicionamento**, expondo
+  todos os parâmetros do perfil (não só potência/velocidade/fan). O painel de perfil tem
+  `Aplicar`, `Salvar` e `Salvar como…`; o rodapé tem `Pré-visualizar` e `Iniciar`.
+  Com **Gerar o G-code novamente a partir da origem antes de iniciar** marcado (padrão quando há
+  SVG/STL importado), o `Iniciar` reconstrói o G-code com passes/fill/modo/posicionamento e inicia.
+  Desmarcado, aplica apenas potência/velocidade/fan ao G-code carregado. `Pré-visualizar` reconstrói
+  sem iniciar.
+- Perfis são filtrados pelo Machine Profile ativo; sem máquina selecionada, salvar fica desabilitado.
+
+### Parâmetros sugeridos (M1 3.5 W, pontos de partida)
+
+| Perfil | Op. | Potência | Feed | Passes | Modo | Fill |
+|---|---|---:|---:|---:|---|---|
+| Papel 0,1 mm | cut | 10–15% | 700–900 | 1 | line | — |
+| Papelão 2 mm | cut | 40–60% | 300–450 | 2 | line | — |
+| Adesivo/vinil | cut | 15–25% | 700–1000 | 1 | line | — |
+| Adesivo/vinil | engrave | 10–20% | 2000–3000 | 1 | fill | 0,10–0,15 |
+| MDF 3 mm | cut | 90–100% | 130–180 | 4–6 | line | — |
+| MDF 3 mm | engrave | 35–55% | 1200–1800 | 1 | fill | 0,15–0,20 |
+| Madeira dura 5 mm | cut | 100% | 90–130 | 6–8 | line | — |
+| Acrílico preto 3 mm | cut | 70–90% | 200–300 | 2–3 | line | — |
+| Couro 2 mm | cut | 45–60% | 300–450 | 2 | line | — |
+| Metal (marcação) | engrave | 100% | 300–600 | 1–2 | line | — |
+| PLA 2 mm | cut | 55–70% | 250–400 | 2–3 | line | — |
+| ABS 2 mm | cut | 45–60% | 300–450 | 2–3 | line | — |
+
+> Valores indicativos; testar em retalho. O diodo de 3,5 W não corta metal.
+
+### Verificação
+
+- `jest`: 614 testes passando (9 novos em `api.profiles`).
+- `eslint`: sem erros nos arquivos alterados.
+- `webpack`: bundle compila.
